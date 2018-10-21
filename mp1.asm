@@ -69,11 +69,58 @@ splice:
     j       end
 
 divide:
+    addi	$s3, $zero, 1
+    sll     $s3, $s3, 8             # initialize shift in bit
+    add     $s4, $t4, $zero
+    sll     $s4, $s4, 8             # initialize opB operand
     sw      $ra, 0($sp)
     xor     $t9, $t3, $t6           # get the product sign bit
+    sub     $t8, $t2, $t5           # get the difference of exponents
+    addi	$t8, $t8, 127			# add exponent offset
     add     $t3, $zero, $zero       # initialize upper remainder-quotient array (RQA) as zero
     add     $t6, $zero, $t1         # initialize lower remainder-quotient array (RQA) with opA mantissa
     sll     $t6, $t6, 8             
+    addi    $t7, $zero, 0           # initialize counter to one
+nonRestoringDivision:
+    beq     $t7, $s5, nonRestoringDivisionEnd
+    and     $t2, $t3, $s6           # get sign bit of RQA
+    and     $t5, $t6, $s6           # get msb of lower RQA before left shift
+    srl     $t5, $t5, 23
+    sll     $t3, $t3, 1             # shift upper RQA to the left once
+    sll     $t6, $t6, 1             # shift lower RQA to the left once
+    add     $t3, $t3, $t5           # add msb of lower RQA ta lsb of upper RQA
+    bne		$t2, $zero, addOpB  	# if sign bit is 1, add opB to upper RQA
+    subu    $t3, $t3, $s4
+    j		shiftInBit
+addOpB:
+    addu    $t3, $t3, $s4
+shiftInBit:
+    and     $t2, $t3, $s6           # get sign bit of RQA
+    beq     $t2, $s6, skipAddShiftInBit
+    add     $t6, $t6, $s3           # shift in bit of one
+skipAddShiftInBit:
+    addi	$t7, $t7, 1
+    j		nonRestoringDivision
+nonRestoringDivisionEnd:
+    and     $t2, $t3, $s6           # get sign bit of RQA
+    bne     $t2, $s6, skipAddShiftInBitOut
+    add     $t6, $t6, $s3           # shift in bit of one
+skipAddShiftInBitOut:
+    bne		$t2, $zero, addOpBOut  	# if sign bit is 1, add opB to upper RQA
+    j		divisionEnd
+addOpBOut:
+    addu    $t3, $t3, $s4
+divisionEnd:
+    clz     $t2, $t6                # count leading number of zeroes of quotient
+    sllv    $t6, $t6, $t2           # normalize quotient
+    sub     $t8, $t8, $t2           # decrement exponent by left shift count
+    sll     $t6, $t6, 1
+    srl     $t7, $t6, 9             # truncate implied one
+    add     $v0, $t9, $zero         # insert sign bit
+    sll     $v0, $v0, 8
+    add     $v0, $v0, $t8           # insert exponent bits
+    sll     $v0, $v0, 23
+    addu    $v0, $v0, $t7           # insert mantissa bits
     lw      $ra, 0($sp)
     jr      $ra
 
