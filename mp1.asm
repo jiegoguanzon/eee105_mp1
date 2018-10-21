@@ -3,8 +3,10 @@
 #    .word   0x789ABCDE  0x800ABCDE
 #    .word   0x4426AA3D  0x44A42434  
 #    .word   0xC426EA3D  0x45870B71
+    .word   0x44A42434 0xFF800000   
 #    .float 0.5625 9.75
 #    .float  125.125 12.0625
+#    .float  14.0 3.0
     .float  127.03125 16.9375
     .text
 main:
@@ -14,6 +16,9 @@ main:
     lui     $s6, 0x8000         # sign bit inverter
     lui     $s7, 0x0080         # implied 1
     addi	$s5, $zero, 24      # 24 bits
+
+    lui     $k0, 0x7F80             # positive inf
+    lui     $k1, 0xFF80             # negative inf
 
     add     $a0, $s1, $zero
     jal     floatAbsoluteValue
@@ -69,6 +74,48 @@ splice:
     j       end
 
 divide:
+    beq     $s1, $k0, dPosInfA
+    beq     $s1, $k1, dNegInfA
+    beq     $s1, $zero, dZeroA
+    j		dCheckOpB
+dPosInfA:
+    beq     $s2, $k0, dAnsNan
+    beq     $s2, $k1, dAnsNan
+    beq     $s2, $zero, dAnsNan
+    and     $t9, $s2, $s6
+    beq     $t9, $s6, dAnsNegInf
+    j		dAnsPosInf
+dNegInfA:
+    beq     $s2, $k0, dAnsNan
+    beq     $s2, $k1, dAnsNan
+    beq     $s2, $zero, dAnsNan
+    and     $t9, $s2, $s6
+    beq     $t9, $s6, dAnsPosInf
+    j		dAnsNegInf
+dCheckOpB:
+    beq     $s2, $k0, dAnsNan
+    beq     $s2, $k1, dAnsNan
+    beq     $s2, $zero, dAnsNan
+    j       divStart
+dZeroA:
+    beq     $s2, $k0, dAnsNan
+    beq     $s2, $k1, dAnsNan
+    beq     $s2, $zero, dAnsNan
+    j		dAnsZero
+dAnsPosInf:
+    lui     $v0, 0x7F80
+    jr      $ra
+dAnsNegInf:
+    lui     $v0, 0xFF80
+    jr      $ra
+dAnsZero:
+    add     $v0, $zero, $zero
+    jr      $ra
+dAnsNan:
+    lui     $v0, 0x7F80
+    addi	$v0, $v0, 1
+    jr      $ra
+divStart:
     addi	$s3, $zero, 1
     sll     $s3, $s3, 8             # initialize shift in bit
     sll     $s4, $t4, 8             # initialize opB operand
@@ -121,6 +168,56 @@ divisionEnd:
     jr      $ra
 
 multiply:
+    beq     $s1, $k0,  mPosInfA
+    beq		$s1, $k1, mNegInfA
+    beq     $s1, $zero, mZeroA
+    j		mCheckOpB
+mPosInfA:
+    beq     $s2, $k0, mAnsPosInf
+    beq     $s2, $k1, mAnsNegInf
+    beq     $s2, $zero, mAnsNan
+    and     $t9, $s2, $s6
+    beq     $t9, $s6, mAnsNegInf
+    j		mAnsPosInf
+mNegInfA:
+    beq     $s2, $k0, mAnsNegInf
+    beq     $s2, $k1, mAnsPosInf
+    beq     $s2, $zero, mAnsNan
+    and     $t9, $s2, $s6
+    beq     $t9, $s6, mAnsPosInf
+    j		mAnsNegInf
+mCheckOpB:
+    beq     $s2, $k0,  mCheckNegInf
+    beq		$s2, $k1,  mCheckPosInf
+    beq     $s1, $zero, mAnsZero
+    beq     $s2, $zero, mAnsZero
+    j		multStart
+mZeroA:
+    beq     $s2, $k0, mAnsNan
+    beq     $s2, $k1, mAnsNan
+    j       mAnsZero
+mCheckPosInf:
+    and     $t9, $s1, $s6
+    beq     $t9, $s6, mAnsNegInf
+    j		mAnsPosInf
+mCheckNegInf:
+    and     $t9, $s1, $s6
+    beq     $t9, $s6, mAnsPosInf
+    j		mAnsNegInf
+mAnsPosInf:
+    lui     $v0, 0x7F80
+    jr      $ra
+mAnsNegInf:
+    lui     $v0, 0xFF80
+    jr      $ra
+mAnsZero:
+    add     $v0, $zero, $zero
+    jr      $ra
+mAnsNan:
+    lui     $v0, 0x7F80
+    addi    $v0, $v0, 1
+    jr      $ra
+multStart:
     sw      $ra, 0($sp)
     xor     $t9, $t3, $t6           # get the product sign bit
     add     $t8, $zero, $zero       # initialize product high with zero
@@ -164,31 +261,53 @@ sequentialMultiplicationEnd:
     jr      $ra
 
 sum:
+    beq     $s1, $k0, aPosInfA
+    beq     $s1, $k1, aNegInfA
+    j		aCheckOpB
+aPosInfA:
+    beq     $s2, $k0, aAnsPosInf
+    beq     $s2, $k1, aAnsNan
+    j		aAnsPosInf
+aNegInfA:
+    beq     $s2, $k0, aAnsNan
+    beq     $s2, $k1, aAnsNegInf
+    j		aAnsNegInf
+aCheckOpB:
+    beq		$s2, $k0, aAnsPosInf
+    beq		$s2, $k1, aAnsNegInf
+    j       addStart
+aAnsPosInf:
+    lui     $v0, 0x7F80
+    jr      $ra
+aAnsNegInf:
+    lui     $v0, 0xFF80
+    jr      $ra
+aAnsNan:
+    lui     $v0, 0x7F80
+    addi    $v0, $v0, 1
+    jr      $ra
+addStart:
     sw		$ra, 0($sp)
-
     add     $a0, $t2, $zero         # load opA exponent as argument
     add     $a1, $t5, $zero         # load opB exponent as argument
     jal     getExponentDifference
-
     add     $a0, $t1, $zero         # load opA mantissa as argument
     add     $a1, $t4, $zero         # load opB mantissa as argument
     add     $a2, $v0, $zero         # load exponent difference as argument
     jal     alignMantissa
     add     $t1, $v0, $zero
     add     $t4, $v1, $zero         
-
     bne     $t3, $t6, subtractMantissa
     add     $t7, $t1, $t4           # add aligned mantissas
     j		countLeadingZeroes
 subtractMantissa:
     sub     $t7, $t1, $t4
-
 countLeadingZeroes:
     clz     $t8, $t7                # count leading number of zeroes
-    sub     $t7, $t7, $s7           # remove implied one
     addi    $t6, $t8, -8            # check if normalization is needed
     bne		$t6, $zero, adderNormalize	# if $t0 != $t1 then target
 returnAdderAnswer:
+    sub     $t7, $t7, $s7           # remove implied one
     add     $t8, $t2, $zero         # E3 = E1
     add     $t9, $t3, $zero
     sll     $t9, $t9, 8
@@ -197,11 +316,36 @@ returnAdderAnswer:
     sll     $t9, $t9, 23            # place sign and exponent in the upper 9 bits
     add     $t9, $t9, $t7           # add the mantissa
     add		$v0, $t9, $zero         # store in  return variable
-    
     lw      $ra, 0($sp)
     jr      $ra
 
 subtract:
+    beq     $s1, $k0, sPosInfA
+    beq     $s1, $k1, sNegInfA
+    j		sCheckOpB
+sPosInfA:
+    beq     $s2, $k0, sAnsNan
+    beq     $s2, $k1, sAnsPosInf
+    j		sAnsPosInf
+sNegInfA:
+    beq     $s2, $k0, sAnsNegInf 
+    beq     $s2, $k1, sAnsNan
+    j		sAnsNegInf
+sCheckOpB:
+    beq		$s2, $k0, sAnsNegInf
+    beq		$s2, $k1, sAnsPosInf
+    j       subStart
+sAnsPosInf:
+    lui     $v0, 0x7F80
+    jr      $ra
+sAnsNegInf:
+    lui     $v0, 0xFF80
+    jr      $ra
+sAnsNan:
+    lui     $v0, 0x7F80
+    addi    $v0, $v0, 1
+    jr      $ra
+subStart:
     sw		$ra, 0($sp)
     addi     $sp, $sp, 4
     jal     sum
@@ -272,7 +416,6 @@ spliceOperands:
     add     $t2, $v0, $zero     # temporarily save exponent
     jal     getSign
     add     $t3, $v0, $zero     # temporarily save sign
-
     add     $a0, $a2, $zero
     jal		getMantissa
     add     $t4, $v0, $zero     # temporarily save mantissa
