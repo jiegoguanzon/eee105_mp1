@@ -71,8 +71,7 @@ splice:
 divide:
     addi	$s3, $zero, 1
     sll     $s3, $s3, 8             # initialize shift in bit
-    add     $s4, $t4, $zero
-    sll     $s4, $s4, 8             # initialize opB operand
+    sll     $s4, $t4, 8             # initialize opB operand
     sw      $ra, 0($sp)
     xor     $t9, $t3, $t6           # get the product sign bit
     sub     $t8, $t2, $t5           # get the difference of exponents
@@ -80,7 +79,7 @@ divide:
     add     $t3, $zero, $zero       # initialize upper remainder-quotient array (RQA) as zero
     add     $t6, $zero, $t1         # initialize lower remainder-quotient array (RQA) with opA mantissa
     sll     $t6, $t6, 8             
-    addi    $t7, $zero, 0           # initialize counter to one
+    addi    $t7, $zero, 0           # initialize counter to zero
 nonRestoringDivision:
     beq     $t7, $s5, nonRestoringDivisionEnd
     and     $t2, $t3, $s6           # get sign bit of RQA
@@ -88,7 +87,7 @@ nonRestoringDivision:
     srl     $t5, $t5, 23
     sll     $t3, $t3, 1             # shift upper RQA to the left once
     sll     $t6, $t6, 1             # shift lower RQA to the left once
-    add     $t3, $t3, $t5           # add msb of lower RQA ta lsb of upper RQA
+    add     $t3, $t3, $t5           # add msb of lower RQA to lsb of upper RQA
     bne		$t2, $zero, addOpB  	# if sign bit is 1, add opB to upper RQA
     subu    $t3, $t3, $s4
     j		shiftInBit
@@ -103,9 +102,6 @@ skipAddShiftInBit:
     j		nonRestoringDivision
 nonRestoringDivisionEnd:
     and     $t2, $t3, $s6           # get sign bit of RQA
-    bne     $t2, $s6, skipAddShiftInBitOut
-    add     $t6, $t6, $s3           # shift in bit of one
-skipAddShiftInBitOut:
     bne		$t2, $zero, addOpBOut  	# if sign bit is 1, add opB to upper RQA
     j		divisionEnd
 addOpBOut:
