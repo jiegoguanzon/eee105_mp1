@@ -6,7 +6,7 @@
 #    .word   0x44A42434 0xFF800000   
 #    .float 0.5625 9.75
 #    .float  125.125 12.0625
-#    .float  14.0 3.0
+    .float  14.0 3.0
     .float  127.03125 16.9375
     .text
 main:
